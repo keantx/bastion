@@ -1,4 +1,4 @@
-**This is heavily redacted version of the bastion VMSS image IaC I personally maintain and use**
+**This is heavily redacted version of the bastion VMSS image IaC I personally maintain and use**  
 The purpose of this repo is solely for portfolio
 
 ## Bastion
