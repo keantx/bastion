@@ -1,8 +1,8 @@
 ## Bastion
 Bastion host image for the platform, built with Packer on Azure.
 
-# This is heavily redacted version of the bastion VMSS image IaC I personally maintain and use
-The purpose of this repo is solely for portfolio
+### This is heavily redacted version of the bastion VMSS image IaC I personally maintain and use
+### The purpose of this repo is solely for portfolio
 
 ## Specification
 
