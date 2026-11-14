@@ -1,0 +1,59 @@
+#!/bin/bash
+
+declare -i errors=0
+
+fn_version() {
+    local name="$1"
+    local version_command="$2"
+
+
+    echo ''
+    echo "### $name"
+    echo ''
+
+    local cmd=$(echo "$version_command" |awk '{print $1}')
+    if ! command -v "$cmd" > /dev/null; then
+        echo 'Error: command `'"$cmd"'` not found'
+        errors=$((errors+1))
+        return
+    fi
+
+    local version="$($version_command 2>&1)"
+    if [ "$?" -eq 0 ]; then
+        echo '```'
+        echo "$version"
+        echo '```'
+    else
+        echo 'Error: command `'"$version_command"'` failed'
+        errors=$((errors+1))
+    fi
+}
+
+echo '# SW Report'
+fn_version 'script' 'script --version'
+fn_version 'kubectl' 'kubectl version --client -o yaml'
+fn_version 'kubectx' 'kubectx --version'
+fn_version 'kubens' 'kubens --version'
+fn_version 'flux' 'flux --version'
+fn_version 'helm' 'helm version --short'
+fn_version 'AZ Copy' 'azcopy --version'
+fn_version 'Azure CLI' 'az --version'
+fn_version 'sudo' 'sudo --version'
+fn_version 'JQ' 'jq --version'
+fn_version 'YQ' 'yq --version'
+fn_version 'wget' 'wget --version'
+fn_version 'curl' 'curl --version'
+
+fn_version 'MongoDB shell' 'mongosh --version'
+fn_version 'Redis CLI' 'redis-cli --version'
+fn_version 'PostgreSQL' 'psql --version'
+
+fn_version 'SQL tool' 'sqltool --version'
+fn_version 'servicebus-cleaner' 'servicebus-cleaner --version'
+fn_version 'eventhub-publish' 'eventhub-publish --version'
+
+echo "## Total errors: $errors"
+if [ "$errors" -gt 0 ]; then
+    echo "WARNING: sw_report detected errors=$errors while checking command versions" >&2
+fi
+exit 0

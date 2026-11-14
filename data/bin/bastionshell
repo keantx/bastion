@@ -1,0 +1,104 @@
+#!/bin/bash
+
+user="$(id -un)"
+BASTION_SESSION_TIME="$(date --iso-8601=seconds --utc)"
+export BASTION_SESSION_TIME
+
+echo "Hello $(echo "$user" | cut -d@ -f1), you are now connected to (redacted)"
+echo ''
+echo 'Please note:'
+echo ' - This server can only be used to support (redacted)'
+echo ' - This session is recorded and can be analyzed in future.'
+echo ''
+
+fn_send_event() {
+    # shellcheck source=/dev/null
+    source /etc/profile.d/z50-(redacted)-environment_vars.sh
+    local eventhub_ns="${res_base_name}-security-events"
+    export DOTNET_Logging__LogLevel__Default=Error
+    export DOTNET_Logging__Console__FormatterName=json
+    export DOTNET_Logging__Console__FormatterOptions__TimestampFormat='HH:mm:ss'
+    export DOTNET_Logging__Console__FormatterOptions__UseUtcTimestamp='true'
+
+    # Run in the foreground so stdin (the jq output) is fully consumed and
+    # the event is sent before the session starts.
+    eventhub-publish --system 'true' --namespace "$eventhub_ns" --hub 'bastion' \
+        --UseWebSockets 'true' >> /var/log/eventhub-publish/log 2>&1
+}
+
+fn_trim() {
+    local s="$1"
+    s="${s#"${s%%[![:space:]]*}"}"
+    s="${s%"${s##*[![:space:]]}"}"
+    printf '%s' "$s"
+}
+
+fn_prompt_reason() {
+    local prompt="$1" input
+    while true; do
+        read -r -p "$prompt" input || exit 1
+        input="$(fn_trim "$input")"
+        if [ "${#input}" -ge 5 ]; then
+            REPLY_VALUE="$input"
+            return
+        fi
+        echo 'Reason must be at least 5 characters long.'
+        echo ''
+    done
+}
+
+export REASON=''
+export EMERGENCY='false'
+export EMERGENCY_REASON=''
+
+echo 'Input options:'
+echo ' - reason to access'
+echo ' - "emergency" for an emergency situation'
+echo ' - "exit" to exit the session'
+
+while true; do
+    read -r -p 'Enter reason to access bastion : ' REASON || exit 1
+    REASON="$(fn_trim "$REASON")"
+
+    case "$REASON" in
+        emergency)
+            EMERGENCY='true'
+            REASON=''
+            break
+            ;;
+        exit)
+            echo 'Exiting...'
+            exit 1
+            ;;
+        *)
+            if [ "${#REASON}" -ge 5 ]; then
+                break
+            fi
+            echo 'Reason must be at least 5 characters long.'
+            echo ''
+            ;;
+    esac
+done
+
+if [ "$EMERGENCY" == 'true' ]; then
+    fn_prompt_reason 'Enter reason for emergency access: '
+    EMERGENCY_REASON="$REPLY_VALUE"
+    export EMERGENCY_REASON
+
+    jq -n --arg user "$user" --arg reason "$EMERGENCY_REASON" \
+          --arg time "$BASTION_SESSION_TIME" '{
+        user: $user,
+        sessionTime: $time,
+        emergencyAccess: true,
+        emergencyReason: $reason
+    }' | fn_send_event
+else
+    jq -n --arg user "$user" --arg reason "$REASON" \
+          --arg time "$BASTION_SESSION_TIME" '{
+        user: $user,
+        sessionTime: $time,
+        ticket: $reason
+    }' | fn_send_event
+fi
+
+exec bash -il

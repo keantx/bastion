@@ -1,0 +1,149 @@
+{
+    "build": [
+        {
+            "provisioner": {
+                "file": [
+                    {
+                        "destination": "/tmp/",
+                        "source": "${path.root}/data.tar.gz"
+                    },
+                    {
+                        "destination": "${path.root}/sw_report.md",
+                        "direction": "download",
+                        "source": "/var/log/packer/sw_report.md"
+                    }
+                ],
+                "shell": [
+                    {
+                        "env": {
+                            "RELEASES_KEY": "${var.releases_key}"
+                        },
+                        " execute_command" : "chmod +x {{ .Path }}; sudo env {{ .Vars }} sh '{{ .Path }}'",
+                        "scripts": [
+                            "${path.root}/commands.sh"
+                        ]
+                    },
+                    {
+                        " execute_command" : "chmod +x {{ .Path }}; sudo env {{ .Vars }} sh '{{ .Path }}'",
+                        "inline": [
+                            "echo 'export BASTION_VERSION=\"${var.version}\"' \u003e /etc/profile.d/bastion_version.sh"
+                        ]
+                    },
+                    {
+                       " execute_command" : "chmod +x {{ .Path }}; sudo env {{ .Vars }} sh '{{ .Path }}'",
+                        "inline": [
+                            "[ -e /usr/sbin/waagent ] \u0026\u0026 /usr/sbin/waagent -force -deprovision+user \u0026\u0026 export HISTSIZE=0 \u0026\u0026 sync"
+                        ]
+                    }
+                ]
+            },
+            "sources": [
+                "source.azure-arm.nonprod_(redacted)"
+            ]
+        }
+    ],
+    "source": {
+        "azure-arm": {
+            "nonprod_(redacted)": [
+                {
+                    "azure_tags": {
+                        "CommitID": "${var.commit_id}",
+                        "Description": "Image deployment",
+                        "Owner": "Infra Team"
+                    },
+                    "build_resource_group_name": "(redacted)",
+                    "client_id": "${var.cl_id}",
+                    "client_secret": "${var.cl_secret}",
+                    "image_offer": "ubuntu-26_04-lts",
+                    "image_publisher": "Canonical",
+                    "image_sku": "server",
+                    "image_version": "latest",
+                    "os_type": "Linux",
+                    "shared_image_gallery_destination": [
+                        {
+                            "gallery_name": "(redacted)",
+                            "image_name": "${var.image_name}",
+                            "image_version": "${var.version}",
+                            "replication_regions": "${split(\",\", \"${var.regions}\")}",
+                            "resource_group": "(redacted)",
+                            "subscription": "(redacted)"
+                        }
+                    ],
+                    "skip_create_image": "${var.skip_create_image}",
+                    "subscription_id": "(redacted)",
+                    "tenant_id": "(redacted)",
+                    "virtual_network_name": "(redacted)",
+                    "virtual_network_resource_group_name": "(redacted)",
+                    "virtual_network_subnet_name": "packer",
+                    "vm_size": "Standard_DS2_v2"
+                }
+            ]
+        }
+    },
+    "variable": {
+        "cl_id": [
+            {
+                "type": "${string}"
+            }
+        ],
+        "cl_secret": [
+            {
+                "sensitive": true,
+                "type": "${string}"
+            }
+        ],
+        "client_id": [
+            {
+                "type": "${string}"
+            }
+        ],
+        "client_secret": [
+            {
+                "sensitive": true,
+                "type": "${string}"
+            }
+        ],
+        "commit_id": [
+            {
+                "type": "${string}"
+            }
+        ],
+        "image_name": [
+            {
+                "type": "${string}"
+            }
+        ],
+        "regions": [
+            {
+                "type": "${string}"
+            }
+        ],
+        "releases_key": [
+            {
+                "sensitive": true,
+                "type": "${string}"
+            }
+        ],
+        "skip_create_image": [
+            {
+                "default": false,
+                "type": "${bool}"
+            }
+        ],
+        "subscription_id": [
+            {
+                "type": "${string}"
+            }
+        ],
+        "tenant_id": [
+            {
+                "type": "${string}"
+            }
+        ],
+        "version": [
+            {
+                "type": "${string}"
+            }
+        ]
+    }
+}

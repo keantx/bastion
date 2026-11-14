@@ -1,0 +1,120 @@
+trigger:
+  branches:
+    include:
+    - main
+
+schedules:
+  - cron: "0 6 14 * *" # At 06:00 on every 14th day-of-month.
+    branches:
+      include:
+      - main
+
+variables:
+  - group: releases
+  - name: BuildConnection
+    value: (redacted)
+  - ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/main') }}:
+      - name: image_suffix
+        value: ""
+      - name: replication_regions
+        value: southeastasia,indonesiacentral
+      - name: Publish
+        value: "true"
+      - name: SkipPublish
+        value: "false"
+  - ${{ if not(eq(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
+      - name: image_suffix
+        value: '_dev'
+      - name: replication_regions
+        value: indonesiacentral
+      - name: Publish
+        value: "false"
+      - name: SkipPublish
+        value: "true"
+
+resources:
+  repositories:
+    - repository: templates
+      type: git
+      name: (redacted)
+      ref: refs/heads/main
+
+stages:
+- template: version/version-stage.yaml@templates
+  parameters:
+    createTag: ${{ eq(variables.Publish, 'true') }}
+    configPath: ci/GitVersion.yml
+    versionProperty: MajorMinorPatch
+- stage: build_image
+  displayName: Build VM image
+  dependsOn:
+    - versionStage
+  variables:
+    version: $[ stageDependencies.versionStage.versionJob.outputs['versionStep.version'] ]
+  jobs:
+  - job: build_image
+    displayName: Build VM image
+    pool: infra-peered-agent-pool
+    steps:
+    - task: AzureKeyVault@1
+      name: keyvault
+      displayName: Read service user secret from Azure Key Vault
+      inputs:
+        azureSubscription: $(BuildConnection)
+        keyVaultName: (redacted)
+        secretsFilter: 'client-secret,client-id,ssh-host-dsa-key,ssh-host-ecdsa-key,ssh-host-ed25519-key,ssh-host-rsa-key'
+        runAsPreJob: false # Azure DevOps Services only
+
+    - script: |
+        mkdir -p data/etc/ssh
+        echo "${ssh_host_dsa_key}" > (redacted)
+        echo "${ssh_host_ecdsa_key}" > (redacted)
+        echo "${ssh_host_ed25519_key}" > (redacted)
+        echo "${ssh_host_rsa_key}" > (redacted)
+      env:
+        ssh_host_dsa_key: $(ssh-host-dsa-key)  
+        ssh_host_ecdsa_key: $(ssh-host-ecdsa-key)
+        ssh_host_ed25519_key: $(ssh-host-ed25519-key)
+        ssh_host_rsa_key: $(ssh-host-rsa-key)
+      displayName: Write SSH keys to files
+
+    - script: |
+        tar czvf data.tar.gz data
+        packer plugins install github.com/hashicorp/azure
+      displayName: pack data directory
+
+    - task: AzureCLI@2
+      displayName: Build Image With Packer
+      inputs:
+        azureSubscription: $(BuildConnection)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          case "$PKR_VAR_releases_key" in
+            ''|'$('*) echo "##vso[task.logissue type=error]releases_key empty or unresolved"; exit 1 ;;
+          esac
+          echo "releases_key length: ${#PKR_VAR_releases_key}"
+
+          # packer plugins install github.com/hashicorp/azure
+          packer version
+          packer build \
+          -var "version=$(version)" \
+          -var "image_name=bastionv2$(image_suffix)" \
+          -var "regions=$(replication_regions)" \
+          -var "skip_create_image=$(SkipPublish)" \
+          -var "commit_id=$(Build.SourceVersion)" \
+          -var "cl_id=$(client-id)" \
+          -var "cl_secret=$(client-secret)" \
+          -var "subscription_id=(redacted)" \
+          -var "tenant_id=(redacted)" \
+          -on-error=cleanup \
+          -force \
+          packer.pkr.hcl
+      env:
+        PKR_VAR_releases_key: $(sas_token)
+
+    # publish SW report to Azure Pipelines
+    - script: |
+        echo "##vso[task.uploadsummary]$(realpath sw_report.md)"
+      displayName: Publish SW report
+

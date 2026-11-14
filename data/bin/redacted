@@ -1,0 +1,137 @@
+#!/bin/bash
+
+# This file is intended to be sourced.
+# It contains functions for easier live...
+
+username=$(whoami|cut -d@ -f1)
+export PS1="\[\033[01;32m\]${username}@${environment_name}\[\033[0m\]:\[\033[01;34m\]\w\[\033[00m\]\$ " 
+
+fn_available_aks() {
+    az aks list -o tsv --query "[].{name:name}" --subscription "$subscription_id" |cut -d- -f5
+}
+export -f fn_available_aks
+
+fn_login_aks() {
+    # prefer user parameter
+    declare cluster_name="$1"
+    shift
+
+    if [ -z "$cluster_name" ]; then
+        clusters=(`fn_available_aks`)
+        cluster_count="${#clusters[@]}"
+        if [ $cluster_count -eq 0 ]; then
+            # no cluster available - show error and exit
+            echo "ERROR: no AKS clusters found"
+            return 1
+        elif [ $cluster_count -eq 1 ]; then
+            # only one cluster available - use it
+            cluster_name="${clusters[0]}"
+        else
+            # multiple clusters available - ask user
+            echo "available AKS clusters: ${clusters[*]}"
+            read -p "choose cluster: " cluster_name
+        fi
+    fi
+
+    aks_name="$res_base_name-$cluster_name-aks"
+
+    echo "Logging into AKS $aks_name"
+    az aks get-credentials -n "$aks_name" -g "$resource_group_aks" --overwrite-existing --subscription "$subscription_id" "$@"
+    kubelogin convert-kubeconfig -l azurecli
+}
+export -f fn_login_aks
+
+fn_question() {
+    while true; do
+        read -p "$1 (y/n) " yn
+        case $yn in
+            [yY] ) return 0 ;;
+            [nN] ) return 1 ;;
+            * ) echo 'invalid response' ;;
+        esac
+    done
+}
+export -f fn_question
+
+fn_aks() {
+    # interactive login
+    if fn_question "Do you want to login to the Azure CLI?"; then
+        az login --use-device-code
+        az account set --subscription "$subscription_id"
+    fi
+
+    fn_login_aks
+}
+export -f fn_aks
+
+fn_check_hr_exists() {
+  local NAMESPACE="$1"
+  local RELEASE_NAME="$2"
+  helm status "${RELEASE_NAME}" -n "${NAMESPACE}" &> /dev/null
+  helm_hr_check=$?
+  kubectl -n "${NAMESPACE}" get HelmRelease "${RELEASE_NAME}" &> /dev/null
+  kube_hr_check=$?
+  if [[ ${helm_hr_check} -ne 0 && ${kube_hr_check} -ne 0 ]]; then
+    return 1
+  fi
+  return 0
+}
+export -f fn_check_hr_exists
+
+fn_remove_hr_version_secrets() {
+  local NAMESPACE="$1"
+  local RELEASE_NAME="$2"
+  if [[ -z "${NAMESPACE}" || -z "${RELEASE_NAME}" ]]; then
+    echo "Usage: fn_remove_hr_version_secrets <team_namepsace> <helm_release_name>"
+    return 1
+  fi
+  old_release_secrets=$(kubectl -n ${NAMESPACE} get secret -l "name=${RELEASE_NAME},owner=helm" -o jsonpath='{range .items[*]}{.metadata.name}{" "}{end}')
+  if [[ ! -z "${old_release_secrets}" ]]; then
+    echo "Found secrets to remove: ${old_release_secrets}"
+    for old_hr_secret in ${old_release_secrets}; do
+      echo "============================== Deleting ${old_hr_secret} in ${NAMESPACE}  namespace. =============================="
+      kubectl -n ${NAMESPACE} delete secret ${old_hr_secret}
+    done
+  fi
+}
+
+export -f fn_remove_hr_version_secrets
+
+fn_clean_remove_helmrelease() {
+  local NAMESPACE="$1"
+  local RELEASE_NAME="$2"
+  if [[ -z "${NAMESPACE}" || -z "${RELEASE_NAME}" ]]; then
+    echo "Usage: fn_clean_remove_helmrelease <team_namepsace> <helm_release_name>"
+    return 1
+  fi
+
+  if ! fn_check_hr_exists "${NAMESPACE}" "${RELEASE_NAME}"; then
+    echo "HelmRelease/${RELEASE_NAME} is not available on namespace ${NAMESPACE}"
+    return 1
+  fi
+
+  # Check and remove finalizers of the Helm release
+  finalizers=$(kubectl -n "${NAMESPACE}" get helmrelease "${RELEASE_NAME}" -o jsonpath='{.metadata.finalizers[*]}')
+
+  if [[ -n "${finalizers}" ]]; then
+    echo "Removing finalizers: ${finalizers} from the Helm release: ${RELEASE_NAME}"
+    kubectl patch -n $NAMESPACE helmrelease ${RELEASE_NAME}  -p '{"metadata":{"finalizers":[]}}' --type=merge
+  else
+    echo "No finalizers found for ${RELEASE_NAME}"
+  fi
+
+  # Delete the Helm release
+  if helm delete "${RELEASE_NAME}" -n "${NAMESPACE}" || flux -n "${NAMESPACE}" delete hr "${RELEASE_NAME}" -s; then
+    fn_remove_hr_version_secrets "${NAMESPACE}" "${RELEASE_NAME}"
+    if fn_check_hr_exists "${NAMESPACE}" "${RELEASE_NAME}"; then
+      kubectl -n "${NAMESPACE}" delete HelmRelease "${RELEASE_NAME}" &> /dev/null
+    fi
+    echo "helmrelease ${RELEASE_NAME} in ${NAMESPACE} namespace is CLEANED UP"
+    return 0
+  else
+    echo "Could not delete helm release ${RELEASE_NAME}"
+    return 1
+  fi
+}
+
+export -f fn_clean_remove_helmrelease

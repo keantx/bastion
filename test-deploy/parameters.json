@@ -1,0 +1,63 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "location": {
+            "value": "westeurope"
+        },
+        "virtualMachineName": {
+            "value": "(redacted)"
+        },
+        "virtualMachineComputerName": {
+            "value": "(redacted)"
+        },
+        "imageGalleryId": {
+            "value": "(redacted)"
+        },
+        "imageDefinition": {
+            "value": "(redacted)"
+        },
+        "imageVersion": {
+            "value": "(redacted)"
+        },
+        "subnetName": {
+            "value": "(redacted)"
+        },
+        "virtualNetworkId": {
+            "value": "(redacted)"
+        },
+        "osDiskType": {
+            "value": "StandardSSD_LRS"
+        },
+        "osDiskDeleteOption": {
+            "value": "Delete"
+        },
+        "virtualMachineSize": {
+            "value": "Standard_B2ms"
+        },
+        "nicDeleteOption": {
+            "value": "Delete"
+        },
+        "adminUsername": {
+            "value": "pept"
+        },
+        "adminPublicKey": {
+            "value": "(redacted)"
+        },
+        "autoShutdownStatus": {
+            "value": "Enabled"
+        },
+        "autoShutdownTime": {
+            "value": "23:00"
+        },
+        "autoShutdownTimeZone": {
+            "value": "Central Europe Standard Time"
+        },
+        "autoShutdownNotificationStatus": {
+            "value": "Disabled"
+        },
+        "autoShutdownNotificationLocale": {
+            "value": "en"
+        }
+    }
+}
