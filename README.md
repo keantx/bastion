@@ -1,7 +1,7 @@
 **planned to rewire everything for actual usage**
 
 ## What?
-**This is heavily redacted fork of bastion image IaC I personally maintain**  
+**This is a heavily redacted fork of bastion image IaC I personally maintain**  
 The purpose of this repo is solely for portfolio
 
 ## Bastion
@@ -11,6 +11,7 @@ Bastion host image, built with Packer on Azure, stored in image gallery
 - Session recording via eventhub & storage account
 - JIRA Ticket validation on bastion access
 - AD SSH user login, no local SSH account exposed
+- Hardening scripts, security settings
 - etc
 
 ## Specification
