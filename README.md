@@ -1,11 +1,20 @@
-**This is heavily redacted version of the bastion VMSS image IaC I personally maintain and use**  
+**planned to rewire everything for actual usage**
+
+## What?
+**This is heavily redacted fork of bastion image IaC I personally maintain**  
 The purpose of this repo is solely for portfolio
 
 ## Bastion
-Bastion host VMSS image, built with Packer on Azure, stored in image gallery
+Bastion host image, built with Packer on Azure, stored in image gallery
+
+## Features running in upstream (might be redacted here)
+- Session recording via eventhub & storage account
+- JIRA Ticket validation on bastion access
+- AD SSH user login, no local SSH account exposed
+- etc
 
 ## Specification
-- **OS:** Ubuntu 26.04 LTS (upgraded from 22.04 due to soon to be EOL)
+- **OS:** Ubuntu 26.04 LTS
 
 ## How to upgrade the bastion image
 1. Run the [bastion pipeline](#).
